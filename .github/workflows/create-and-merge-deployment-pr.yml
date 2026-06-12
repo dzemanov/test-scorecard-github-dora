@@ -1,0 +1,86 @@
+name: Create and Merge Deployment PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_merge:
+        description: "Automatically merge the created PR"
+        required: true
+        default: true
+        type: boolean
+      deployment_outcome:
+        description: "Expected deployment status after PR merge"
+        required: true
+        default: success
+        type: choice
+        options:
+          - success
+          - failure
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  create-test-pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH_NAME: test-deployment/${{ github.run_id }}-${{ github.run_attempt }}
+      FILE_NAME: deployment-simulations/latest.md
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create branch and commit test marker update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+
+          {
+            echo "# Test PR for deployment testing"
+            echo
+            echo "- run_id: ${{ github.run_id }}"
+            echo "- run_attempt: ${{ github.run_attempt }}"
+            echo "- created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          } > "$FILE_NAME"
+
+          git add "$FILE_NAME"
+          git commit -m "chore: update test deployment marker"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        id: pr
+        run: |
+          pr_url="$(gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "chore: test deployment PR (${GITHUB_RUN_ID})" \
+            --body "Automatically created to test PR-triggered deployment events. Expected outcome: ${{ inputs.deployment_outcome }}.")"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+          echo "Created PR: $pr_url"
+
+      - name: Ensure labels exist and assign outcome labels
+        run: |
+          gh label create deployment-test --color 1d76db --description "PR is eligible for test deployment event" 2>/dev/null || true
+          gh label create deployment-fail --color d73a4a --description "Merged PR should create failed test deployment" 2>/dev/null || true
+
+          gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label deployment-test
+
+          if [ "${{ inputs.deployment_outcome }}" = "failure" ]; then
+            gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label deployment-fail
+            echo "Added labels deployment-test,deployment-fail to: ${{ steps.pr.outputs.pr_url }}"
+          else
+            echo "Added label deployment-test to: ${{ steps.pr.outputs.pr_url }}"
+          fi
+
+      - name: Auto-merge pull request
+        if: ${{ inputs.auto_merge }}
+        continue-on-error: true
+        run: |
+          gh pr merge "${{ steps.pr.outputs.pr_url }}" --merge --delete-branch
+          echo "Requested merge for: ${{ steps.pr.outputs.pr_url }}"
