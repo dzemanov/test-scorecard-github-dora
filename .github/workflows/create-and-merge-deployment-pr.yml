@@ -53,6 +53,16 @@ jobs:
           git commit -m "chore: update test deployment marker"
           git push origin "$BRANCH_NAME"
 
+      - name: Require merge token
+        if: ${{ inputs.auto_merge }}
+        env:
+          GH_MERGE_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
+        run: |
+          if [ -z "$GH_MERGE_TOKEN" ]; then
+            echo "Missing required secret GH_MERGE_TOKEN."
+            exit 1
+          fi
+
       - name: Create pull request
         id: pr
         run: |
@@ -112,6 +122,8 @@ jobs:
       - name: Auto-merge pull request
         if: ${{ inputs.auto_merge }}
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
         run: |
           gh pr merge "${{ steps.pr.outputs.pr_url }}" --merge --delete-branch
           echo "Requested merge for: ${{ steps.pr.outputs.pr_url }}"
