@@ -31,3 +31,18 @@ This repository includes GitHub Actions workflows to generate test deployment da
 1. Run `Create and Merge Deployment PR` with `auto_merge = true` and pick `deployment_outcome` (`success` or `failure`).
 2. Confirm `Create Test Deployment on PR Merge` runs and creates deployment/status (only runs for PRs labeled `deployment-test`).
 3. Optionally run `Mark Deployment Success` or `Mark Deployment Failure` using the deployment id to add additional status events.
+
+### Check deployments
+
+Use these commands to verify that test deployments and statuses were created correctly.
+
+```bash
+# List recent deployments
+gh api "repos/dzemanov/test-scorecard-github-dora/deployments?per_page=20"
+
+# Inspect one deployment by id
+gh api "repos/dzemanov/test-scorecard-github-dora/deployments/<deployment_id>"
+
+# List status history for one deployment
+gh api "repos/dzemanov/test-scorecard-github-dora/deployments/<deployment_id>/statuses"
+```

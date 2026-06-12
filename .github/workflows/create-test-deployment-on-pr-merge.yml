@@ -17,7 +17,7 @@ jobs:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'deployment-test')
     runs-on: ubuntu-latest
     outputs:
-      deployment_id: ${{ steps.create.outputs.result }}
+      deployment_id: ${{ steps.create.outputs.deployment_id }}
       deployment_state: ${{ steps.state.outputs.deployment_state }}
     steps:
       - name: Decide deployment result (success/failure) from labels
@@ -47,7 +47,7 @@ jobs:
               description: `Test deployment for merged PR #${context.payload.pull_request.number}`
             });
             core.info(`Created deployment ${deployment.data.id} for ref ${ref}`);
-            return String(deployment.data.id);
+            core.setOutput("deployment_id", Number(deployment.data.id));
 
   set-deployment-status:
     needs: create-deployment
@@ -60,10 +60,10 @@ jobs:
           DEPLOYMENT_STATE: ${{ needs.create-deployment.outputs.deployment_state }}
         with:
           script: |
-            const deploymentId = Number(process.env.DEPLOYMENT_ID);
+            const deploymentId = process.env.DEPLOYMENT_ID;
             const state = process.env.DEPLOYMENT_STATE;
             const runUrl = context.serverUrl + "/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId;
-            if (!Number.isFinite(deploymentId)) {
+            if (!deploymentId) {
               core.setFailed("Invalid deployment id: " + process.env.DEPLOYMENT_ID);
               return;
             }
