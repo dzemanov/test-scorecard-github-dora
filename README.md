@@ -29,5 +29,5 @@ This repository includes GitHub Actions workflows to generate test deployment da
 ### Testing flow
 
 1. Run `Create and Merge Deployment PR` with `auto_merge = true` and pick `deployment_outcome` (`success` or `failure`).
-2. Confirm `Test Deployment (PR Merge)` runs and creates deployment/status (only runs for PRs labeled `deployment-test`).
+2. Confirm `Create Test Deployment on PR Merge` runs and creates deployment/status (only runs for PRs labeled `deployment-test`).
 3. Optionally run `Mark Deployment Success` or `Mark Deployment Failure` using the deployment id to add additional status events.
