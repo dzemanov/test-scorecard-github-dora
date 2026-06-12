@@ -21,6 +21,11 @@ on:
           - in_progress
           - queued
           - pending
+      merge_delay_minutes:
+        description: "How many minutes to wait before auto-merge"
+        required: true
+        default: 5
+        type: number
 
 permissions:
   contents: write
@@ -117,6 +122,18 @@ jobs:
 
           echo "Required labels were not visible before merge. Deployment workflow will be skipped."
           exit 1
+
+      - name: Wait before auto-merge
+        if: ${{ inputs.auto_merge }}
+        run: |
+          delay_minutes="${{ inputs.merge_delay_minutes }}"
+          if ! [[ "$delay_minutes" =~ ^[0-9]+$ ]]; then
+            echo "merge_delay_minutes must be a non-negative integer. Got: $delay_minutes"
+            exit 1
+          fi
+          delay_seconds=$((delay_minutes * 60))
+          echo "Waiting $delay_minutes minute(s) before auto-merge..."
+          sleep "$delay_seconds"
 
       - name: Auto-merge pull request
         if: ${{ inputs.auto_merge }}
