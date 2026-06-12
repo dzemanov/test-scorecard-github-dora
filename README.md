@@ -10,27 +10,24 @@ This repository includes GitHub Actions workflows to generate test deployment da
   - Trigger: manual (`workflow_dispatch`)
   - Inputs:
     - `auto_merge` (boolean, default `true`)
-    - `deployment_outcome` (`success` or `failure`, default `success`)
-  - Behavior: creates a test branch + PR, updates a single marker file (`deployment-simulations/latest.md`), applies `deployment-test` label, and can automatically merge to `main` to trigger deployment workflow.
-  - Outcome: if `deployment_outcome = failure`, workflow applies `deployment-fail` label; otherwise only `deployment-test` is applied.
+    - `deployment_status` (`error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `success`; default `success`)
+  - Behavior: creates a test branch + PR, updates a single marker file (`deployment-simulations/latest.md`), applies `deployment-test`, and applies `deployment-status-<state>` label from input.
 - `Create Test Deployment on PR Merge`:
   - Trigger: pull request merged into `main` with `deployment-test` label
   - Behavior: creates a test deployment and then sets deployment status.
-  - Status rule: add PR label `deployment-fail` to force a failed deployment; otherwise deployment is marked success.
-- `Mark Deployment Success`:
+  - Status rule: reads `deployment-status-<state>` labels on PR (`error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `success`); defaults to `success` if none is set.
+- `Mark Deployment Status`:
   - Trigger: manual (`workflow_dispatch`)
-  - Input: `deployment_id`
-  - Behavior: marks an existing deployment as `success`.
-- `Mark Deployment Failure`:
-  - Trigger: manual (`workflow_dispatch`)
-  - Input: `deployment_id`
-  - Behavior: marks an existing deployment as `failure`.
+  - Inputs:
+    - `deployment_id`
+    - `status` (`error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `success`)
+  - Behavior: marks an existing deployment with selected status.
 
 ### Testing flow
 
-1. Run `Create and Merge Deployment PR` with `auto_merge = true` and pick `deployment_outcome` (`success` or `failure`).
+1. Run `Create and Merge Deployment PR` with `auto_merge = true` and pick `deployment_status`.
 2. Confirm `Create Test Deployment on PR Merge` runs and creates deployment/status (only runs for PRs labeled `deployment-test`).
-3. Optionally run `Mark Deployment Success` or `Mark Deployment Failure` using the deployment id to add additional status events.
+3. Optionally run `Mark Deployment Status` using the deployment id to add additional status events.
 
 ### Check deployments
 

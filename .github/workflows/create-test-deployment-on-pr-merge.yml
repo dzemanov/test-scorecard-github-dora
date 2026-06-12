@@ -20,14 +20,18 @@ jobs:
       deployment_id: ${{ steps.create.outputs.deployment_id }}
       deployment_state: ${{ steps.state.outputs.deployment_state }}
     steps:
-      - name: Decide deployment result (success/failure) from labels
+      - name: Decide deployment status from labels
         id: state
         run: |
-          if echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | grep -q 'deployment-fail'; then
-            echo "deployment_state=failure" >> "$GITHUB_OUTPUT"
-          else
-            echo "deployment_state=success" >> "$GITHUB_OUTPUT"
-          fi
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          deployment_state="success"
+          for state in error failure inactive in_progress queued pending success; do
+            if echo "$labels" | grep -q "\"deployment-status-$state\""; then
+              deployment_state="$state"
+              break
+            fi
+          done
+          echo "deployment_state=$deployment_state" >> "$GITHUB_OUTPUT"
 
       - name: Create test deployment
         id: create

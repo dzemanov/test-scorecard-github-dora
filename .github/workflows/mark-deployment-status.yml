@@ -1,34 +1,48 @@
-name: Mark Deployment Failure
+name: Mark Deployment Status
 
 on:
   workflow_dispatch:
     inputs:
       deployment_id:
-        description: "Deployment ID to mark as failure"
+        description: "Deployment ID to mark"
         required: true
         type: number
+      status:
+        description: "Deployment status to set"
+        required: true
+        default: success
+        type: choice
+        options:
+          - error
+          - failure
+          - inactive
+          - in_progress
+          - queued
+          - pending
+          - success
 
 permissions:
   contents: read
   deployments: write
 
 jobs:
-  mark-failure:
+  mark-status:
     runs-on: ubuntu-latest
     steps:
-      - name: Mark deployment as failure
+      - name: Mark deployment status
         uses: actions/github-script@v8
         with:
           script: |
             const deploymentId = Number("${{ inputs.deployment_id }}");
+            const status = "${{ inputs.status }}";
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             await github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               deployment_id: deploymentId,
-              state: "failure",
+              state: status,
               log_url: runUrl,
               environment_url: `https://example.com/test-deployment/${deploymentId}`,
-              description: "Manually marked failure for deployment testing"
+              description: `Manually marked ${status} for deployment testing`
             });
-            core.notice(`Deployment ${deploymentId} marked as failure`);
+            core.notice(`Deployment ${deploymentId} marked as ${status}`);

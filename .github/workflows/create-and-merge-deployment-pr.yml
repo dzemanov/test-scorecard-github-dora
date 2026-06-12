@@ -8,14 +8,19 @@ on:
         required: true
         default: true
         type: boolean
-      deployment_outcome:
+      deployment_status:
         description: "Expected deployment status after PR merge"
         required: true
         default: success
         type: choice
         options:
+          - error
           - success
           - failure
+          - inactive
+          - in_progress
+          - queued
+          - pending
 
 permissions:
   contents: write
@@ -70,32 +75,26 @@ jobs:
             --base main \
             --head "$BRANCH_NAME" \
             --title "chore: test deployment PR (${GITHUB_RUN_ID})" \
-            --body "Automatically created to test PR-triggered deployment events. Expected outcome: ${{ inputs.deployment_outcome }}.")"
+            --body "Automatically created to test PR-triggered deployment events. Expected status: ${{ inputs.deployment_status }}.")"
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
           echo "Created PR: $pr_url"
 
-      - name: Ensure labels exist and assign outcome labels
+      - name: Ensure labels exist and assign deployment status labels
         run: |
           gh label create deployment-test --color 1d76db --description "PR is eligible for test deployment event" 2>/dev/null || true
-          gh label create deployment-fail --color d73a4a --description "Merged PR should create failed test deployment" 2>/dev/null || true
+          for state in error failure inactive in_progress queued pending success; do
+            gh label create "deployment-status-$state" --color 6f42c1 --description "Merged PR should create test deployment status: $state" 2>/dev/null || true
+          done
 
           gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label deployment-test
-
-          if [ "${{ inputs.deployment_outcome }}" = "failure" ]; then
-            gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label deployment-fail
-            echo "Added labels deployment-test,deployment-fail to: ${{ steps.pr.outputs.pr_url }}"
-          else
-            echo "Added label deployment-test to: ${{ steps.pr.outputs.pr_url }}"
-          fi
+          gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label "deployment-status-${{ inputs.deployment_status }}"
+          echo "Added labels deployment-test,deployment-status-${{ inputs.deployment_status }} to: ${{ steps.pr.outputs.pr_url }}"
 
       - name: Wait until labels are visible on PR
         if: ${{ inputs.auto_merge }}
         run: |
           pr_url="${{ steps.pr.outputs.pr_url }}"
-          required_labels="deployment-test"
-          if [ "${{ inputs.deployment_outcome }}" = "failure" ]; then
-            required_labels="deployment-test deployment-fail"
-          fi
+          required_labels="deployment-test deployment-status-${{ inputs.deployment_status }}"
 
           for attempt in 1 2 3 4 5; do
             labels="$(gh pr view "$pr_url" --json labels --jq '.labels[].name' | tr '\n' ' ')"
