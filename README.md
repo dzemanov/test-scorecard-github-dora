@@ -11,6 +11,7 @@ This repository includes GitHub Actions workflows to generate test deployment da
   - Inputs:
     - `auto_merge` (boolean, default `true`)
     - `deployment_status` (`error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `success`; default `success`)
+    - `merge_delay_minutes` (number, default `5`)
   - Behavior: creates a test branch + PR, updates a single marker file (`deployment-simulations/latest.md`), applies `deployment-test`, and applies `deployment-status-<state>` label from input.
 - `Create Test Deployment on PR Merge`:
   - Trigger: pull request merged into `main` with `deployment-test` label
@@ -25,7 +26,7 @@ This repository includes GitHub Actions workflows to generate test deployment da
 
 ### Testing flow
 
-1. Run `Create and Merge Deployment PR` with `auto_merge = true` and pick `deployment_status`.
+1. Run `Create and Merge Deployment PR` with `auto_merge = true`, pick `deployment_status`, and set `merge_delay_minutes` (default `5`).
 2. Confirm `Create Test Deployment on PR Merge` runs and creates deployment/status (only runs for PRs labeled `deployment-test`).
 3. Optionally run `Mark Deployment Status` using the deployment id to add additional status events.
 
