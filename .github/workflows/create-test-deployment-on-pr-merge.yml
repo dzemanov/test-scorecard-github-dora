@@ -1,4 +1,4 @@
-name: Test Deployment (PR Merge)
+name: Create Test Deployment on PR Merge
 
 on:
   pull_request:
