@@ -3,8 +3,8 @@ name: Create and Merge Deployment PR
 on:
   workflow_dispatch:
     inputs:
-      auto_merge:
-        description: "Automatically merge the created PR"
+      auto_merge_deployment_pr:
+        description: "Automatically merge the final deployment PR"
         required: true
         default: true
         type: boolean
@@ -26,6 +26,16 @@ on:
         required: true
         default: 5
         type: number
+      intermediary_pr_count:
+        description: "How many intermediary PRs to create and merge before deployment PR"
+        required: true
+        default: 0
+        type: number
+      intermediary_pr_open_minutes:
+        description: "How many minutes each intermediary PR should stay open before merge"
+        required: true
+        default: 1
+        type: number
 
 permissions:
   contents: write
@@ -45,26 +55,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create branch and commit test marker update
+      - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH_NAME"
-
-          {
-            echo "# Test PR for deployment testing"
-            echo
-            echo "- run_id: ${{ github.run_id }}"
-            echo "- run_attempt: ${{ github.run_attempt }}"
-            echo "- created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          } > "$FILE_NAME"
-
-          git add "$FILE_NAME"
-          git commit -m "chore: update test deployment marker"
-          git push origin "$BRANCH_NAME"
 
       - name: Require merge token
-        if: ${{ inputs.auto_merge }}
+        if: ${{ inputs.intermediary_pr_count > 0 || inputs.auto_merge_deployment_pr }}
         env:
           GH_MERGE_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
         run: |
@@ -73,16 +70,87 @@ jobs:
             exit 1
           fi
 
-      - name: Create pull request
-        id: pr
+      - name: Create intermediary PRs and deployment PR
+        id: prs
+        env:
+          GH_MERGE_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
         run: |
-          pr_url="$(gh pr create \
-            --base main \
-            --head "$BRANCH_NAME" \
-            --title "chore: test deployment PR (${GITHUB_RUN_ID})" \
-            --body "Automatically created to test PR-triggered deployment events. Expected status: ${{ inputs.deployment_status }}.")"
-          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
-          echo "Created PR: $pr_url"
+          intermediary_pr_count="${{ inputs.intermediary_pr_count }}"
+          intermediary_open_minutes="${{ inputs.intermediary_pr_open_minutes }}"
+
+          if ! [[ "$intermediary_pr_count" =~ ^[0-9]+$ ]]; then
+            echo "intermediary_pr_count must be a non-negative integer. Got: $intermediary_pr_count"
+            exit 1
+          fi
+
+          if ! [[ "$intermediary_open_minutes" =~ ^[0-9]+$ ]]; then
+            echo "intermediary_pr_open_minutes must be a non-negative integer. Got: $intermediary_open_minutes"
+            exit 1
+          fi
+
+          create_branch_commit_and_pr() {
+            local suffix="$1"
+            local title="$2"
+            local body="$3"
+            local branch_name="${BRANCH_NAME}-${suffix}"
+
+            git checkout main
+            git pull --ff-only origin main
+            git checkout -b "$branch_name"
+
+            mkdir -p "$(dirname "$FILE_NAME")"
+            {
+              echo "# Test PR for deployment testing"
+              echo
+              echo "- kind: $suffix"
+              echo "- run_id: ${{ github.run_id }}"
+              echo "- run_attempt: ${{ github.run_attempt }}"
+              echo "- created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            } > "$FILE_NAME"
+
+            git add "$FILE_NAME"
+            git commit -m "chore: update test deployment marker ($suffix)"
+            git push origin "$branch_name"
+
+            gh pr create \
+              --base main \
+              --head "$branch_name" \
+              --title "$title" \
+              --body "$body"
+          }
+
+          wait_and_merge_pr() {
+            local pr_url="$1"
+            local open_minutes="$2"
+            local open_seconds=$((open_minutes * 60))
+
+            if [ "$open_seconds" -gt 0 ]; then
+              echo "Waiting $open_minutes minute(s) before merging intermediary PR: $pr_url"
+              sleep "$open_seconds"
+            fi
+
+            GH_TOKEN="$GH_MERGE_TOKEN" gh pr merge "$pr_url" --merge --delete-branch
+            echo "Merged intermediary PR: $pr_url"
+          }
+
+          if [ "$intermediary_pr_count" -gt 0 ]; then
+            for i in $(seq 1 "$intermediary_pr_count"); do
+              suffix="intermediary-${i}"
+              pr_url="$(create_branch_commit_and_pr \
+                "$suffix" \
+                "chore: intermediary PR ${i} (${GITHUB_RUN_ID})" \
+                "Intermediary PR ${i}/${intermediary_pr_count} created before deployment PR.")"
+              echo "Created intermediary PR ${i}: $pr_url"
+              wait_and_merge_pr "$pr_url" "$intermediary_open_minutes"
+            done
+          fi
+
+          deployment_pr_url="$(create_branch_commit_and_pr \
+            "deployment" \
+            "chore: test deployment PR (${GITHUB_RUN_ID})" \
+            "Automatically created to test PR-triggered deployment events. Expected status: ${{ inputs.deployment_status }}.")"
+          echo "deployment_pr_url=$deployment_pr_url" >> "$GITHUB_OUTPUT"
+          echo "Created deployment PR: $deployment_pr_url"
 
       - name: Ensure labels exist and assign deployment status labels
         run: |
@@ -91,14 +159,14 @@ jobs:
             gh label create "deployment-status-$state" --color 6f42c1 --description "Merged PR should create test deployment status: $state" 2>/dev/null || true
           done
 
-          gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label deployment-test
-          gh pr edit "${{ steps.pr.outputs.pr_url }}" --add-label "deployment-status-${{ inputs.deployment_status }}"
-          echo "Added labels deployment-test,deployment-status-${{ inputs.deployment_status }} to: ${{ steps.pr.outputs.pr_url }}"
+          gh pr edit "${{ steps.prs.outputs.deployment_pr_url }}" --add-label deployment-test
+          gh pr edit "${{ steps.prs.outputs.deployment_pr_url }}" --add-label "deployment-status-${{ inputs.deployment_status }}"
+          echo "Added labels deployment-test,deployment-status-${{ inputs.deployment_status }} to: ${{ steps.prs.outputs.deployment_pr_url }}"
 
       - name: Wait until labels are visible on PR
-        if: ${{ inputs.auto_merge }}
+        if: ${{ inputs.auto_merge_deployment_pr }}
         run: |
-          pr_url="${{ steps.pr.outputs.pr_url }}"
+          pr_url="${{ steps.prs.outputs.deployment_pr_url }}"
           required_labels="deployment-test deployment-status-${{ inputs.deployment_status }}"
 
           for attempt in 1 2 3 4 5; do
@@ -124,7 +192,7 @@ jobs:
           exit 1
 
       - name: Wait before auto-merge
-        if: ${{ inputs.auto_merge }}
+        if: ${{ inputs.auto_merge_deployment_pr }}
         run: |
           delay_minutes="${{ inputs.merge_delay_minutes }}"
           if ! [[ "$delay_minutes" =~ ^[0-9]+$ ]]; then
@@ -136,10 +204,10 @@ jobs:
           sleep "$delay_seconds"
 
       - name: Auto-merge pull request
-        if: ${{ inputs.auto_merge }}
+        if: ${{ inputs.auto_merge_deployment_pr }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
         run: |
-          gh pr merge "${{ steps.pr.outputs.pr_url }}" --merge --delete-branch
-          echo "Requested merge for: ${{ steps.pr.outputs.pr_url }}"
+          gh pr merge "${{ steps.prs.outputs.deployment_pr_url }}" --merge --delete-branch
+          echo "Requested merge for: ${{ steps.prs.outputs.deployment_pr_url }}"
