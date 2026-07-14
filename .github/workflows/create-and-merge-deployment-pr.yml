@@ -93,10 +93,11 @@ jobs:
             local title="$2"
             local body="$3"
             local branch_name="${BRANCH_NAME}-${suffix}"
+            local pr_url
 
-            git checkout main
-            git pull --ff-only origin main
-            git checkout -b "$branch_name"
+            git checkout main >/dev/null 2>&1
+            git pull --ff-only origin main >/dev/null 2>&1
+            git checkout -b "$branch_name" >/dev/null 2>&1
 
             mkdir -p "$(dirname "$FILE_NAME")"
             {
@@ -109,14 +110,15 @@ jobs:
             } > "$FILE_NAME"
 
             git add "$FILE_NAME"
-            git commit -m "chore: update test deployment marker ($suffix)"
-            git push origin "$branch_name"
+            git commit -m "chore: update test deployment marker ($suffix)" >/dev/null 2>&1
+            git push origin "$branch_name" >/dev/null 2>&1
 
-            gh pr create \
+            pr_url="$(gh pr create \
               --base main \
               --head "$branch_name" \
               --title "$title" \
-              --body "$body"
+              --body "$body")"
+            echo "$pr_url"
           }
 
           wait_and_merge_pr() {
