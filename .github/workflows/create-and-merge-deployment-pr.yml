@@ -77,6 +77,7 @@ jobs:
         run: |
           intermediary_pr_count="${{ inputs.intermediary_pr_count }}"
           intermediary_open_minutes="${{ inputs.intermediary_pr_open_minutes }}"
+          action_run_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           if ! [[ "$intermediary_pr_count" =~ ^[0-9]+$ ]]; then
             echo "intermediary_pr_count must be a non-negative integer. Got: $intermediary_pr_count"
@@ -141,7 +142,7 @@ jobs:
               pr_url="$(create_branch_commit_and_pr \
                 "$suffix" \
                 "chore: intermediary PR ${i} (${GITHUB_RUN_ID})" \
-                "Intermediary PR ${i}/${intermediary_pr_count} created before deployment PR.")"
+                "Intermediary PR ${i}/${intermediary_pr_count} created before deployment PR. Action run: ${action_run_url}")"
               echo "Created intermediary PR ${i}: $pr_url"
               wait_and_merge_pr "$pr_url" "$intermediary_open_minutes"
             done
@@ -150,7 +151,7 @@ jobs:
           deployment_pr_url="$(create_branch_commit_and_pr \
             "deployment" \
             "chore: test deployment PR (${GITHUB_RUN_ID})" \
-            "Automatically created to test PR-triggered deployment events. Expected status: ${{ inputs.deployment_status }}.")"
+            "Automatically created to test PR-triggered deployment events. Expected status: ${{ inputs.deployment_status }}. Action run: ${action_run_url}")"
           echo "deployment_pr_url=$deployment_pr_url" >> "$GITHUB_OUTPUT"
           echo "Created deployment PR: $deployment_pr_url"
 
