@@ -33,7 +33,7 @@ jobs:
           done
           echo "deployment_state=$deployment_state" >> "$GITHUB_OUTPUT"
 
-      - name: Create test deployment
+      - name: Create test deployment (under dummy 'production' environment)
         id: create
         uses: actions/github-script@v8
         with:
@@ -43,12 +43,12 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref,
-              environment: "test-deployment",
+              environment: "production",
               auto_merge: false,
               required_contexts: [],
               transient_environment: true,
               production_environment: false,
-              description: `Test deployment for merged PR #${context.payload.pull_request.number}`
+              description: `Dummy production deployment for merged PR #${context.payload.pull_request.number}`
             });
             core.info(`Created deployment ${deployment.data.id} for ref ${ref}`);
             core.setOutput("deployment_id", Number(deployment.data.id));
@@ -81,7 +81,7 @@ jobs:
               deployment_id: deploymentId,
               state,
               log_url: runUrl,
-              environment_url: `https://example.com/test-deployment/${deploymentId}`,
-              description: `Test ${state} deployment status for testing`
+              environment_url: `https://example.com/dummy-production/${deploymentId}`,
+              description: `Dummy production deployment marked as ${state}`
             });
             core.notice(`Deployment ${deploymentId} marked as ${state}`);
