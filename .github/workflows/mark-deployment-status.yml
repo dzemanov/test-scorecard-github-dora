@@ -42,7 +42,7 @@ jobs:
               deployment_id: deploymentId,
               state: status,
               log_url: runUrl,
-              environment_url: `https://example.com/test-deployment/${deploymentId}`,
-              description: `Manually marked ${status} for deployment testing`
+              environment_url: `https://example.com/production/${deploymentId}`,
+              description: `Manually marked ${status} for production deployment`
             });
             core.notice(`Deployment ${deploymentId} marked as ${status}`);
