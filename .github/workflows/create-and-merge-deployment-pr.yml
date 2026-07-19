@@ -153,7 +153,7 @@ jobs:
               done
             fi
 
-            GH_TOKEN="$GH_MERGE_TOKEN" gh pr merge "$pr_url" --merge --delete-branch
+            GH_TOKEN="$GH_MERGE_TOKEN" gh pr merge "$pr_url" --squash --delete-branch
             echo "Merged intermediary PR: $pr_url"
           }
 
@@ -233,5 +233,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_MERGE_TOKEN }}
         run: |
-          gh pr merge "${{ steps.prs.outputs.deployment_pr_url }}" --merge --delete-branch
+          gh pr merge "${{ steps.prs.outputs.deployment_pr_url }}" --squash --delete-branch
           echo "Requested merge for: ${{ steps.prs.outputs.deployment_pr_url }}"
