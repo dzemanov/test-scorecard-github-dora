@@ -153,6 +153,8 @@ jobs:
               done
             fi
 
+            echo "Waiting 5s for mergeability checks to settle before merge."
+            sleep 5
             GH_TOKEN="$GH_MERGE_TOKEN" gh pr merge "$pr_url" --squash --delete-branch
             echo "Merged intermediary PR: $pr_url"
           }
