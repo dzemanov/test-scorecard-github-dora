@@ -124,12 +124,33 @@ jobs:
 
           wait_and_merge_pr() {
             local pr_url="$1"
-            local open_minutes="$2"
+            local branch_name="$2"
+            local open_minutes="$3"
             local open_seconds=$((open_minutes * 60))
+            local update_interval_seconds=30
+            local update_count=$((open_seconds / update_interval_seconds))
 
             if [ "$open_seconds" -gt 0 ]; then
               echo "Waiting $open_minutes minute(s) before merging intermediary PR: $pr_url"
-              sleep "$open_seconds"
+              for update_index in $(seq 1 "$update_count"); do
+                echo "Update $update_index/$update_count for $branch_name. Creating commit before merge."
+                sleep "$update_interval_seconds"
+
+                git fetch origin "$branch_name" >/dev/null 2>&1
+                git checkout "$branch_name" >/dev/null 2>&1 || git checkout -b "$branch_name" "origin/$branch_name" >/dev/null 2>&1
+                git pull --ff-only origin "$branch_name" >/dev/null 2>&1
+
+                {
+                  echo
+                  echo "- intermediary_update_number: $update_index"
+                  echo "- intermediary_update_interval_seconds: $update_interval_seconds"
+                  echo "- intermediary_update_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+                } >> "$FILE_NAME"
+
+                git add "$FILE_NAME"
+                git commit -m "chore: intermediary update ${update_index}/${update_count}" >/dev/null 2>&1
+                git push origin "$branch_name" >/dev/null 2>&1
+              done
             fi
 
             GH_TOKEN="$GH_MERGE_TOKEN" gh pr merge "$pr_url" --merge --delete-branch
@@ -144,7 +165,7 @@ jobs:
                 "chore: intermediary PR ${i} (${GITHUB_RUN_ID})" \
                 "Intermediary PR ${i}/${intermediary_pr_count} created before deployment PR. Action run: ${action_run_url}")"
               echo "Created intermediary PR ${i}: $pr_url"
-              wait_and_merge_pr "$pr_url" "$intermediary_open_minutes"
+              wait_and_merge_pr "$pr_url" "${BRANCH_NAME}-${suffix}" "$intermediary_open_minutes"
             done
           fi
 
