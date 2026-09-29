@@ -36,6 +36,38 @@ on:
         required: true
         default: 1
         type: number
+  workflow_call:
+    inputs:
+      auto_merge_deployment_pr:
+        description: "Automatically merge the final deployment PR"
+        required: false
+        default: true
+        type: boolean
+      deployment_status:
+        description: "Expected deployment status after PR merge"
+        required: false
+        default: success
+        type: string
+      merge_delay_minutes:
+        description: "How many minutes to wait before auto-merge of the deployment PR (max 55 minutes)"
+        required: false
+        default: 0
+        type: number
+      intermediary_pr_count:
+        description: "How many intermediary PRs to create and merge before deployment PR (max 20)"
+        required: false
+        default: 0
+        type: number
+      intermediary_pr_open_minutes:
+        description: "How many minutes each intermediary PR should stay open before merge (PRs count * PR open minutes must be <= 40 minutes)"
+        required: false
+        default: 1
+        type: number
+      run_label:
+        description: "Distinguish when one caller invokes this workflow more than once"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -44,7 +76,7 @@ jobs:
   create-deployment-pr:
     runs-on: ubuntu-latest
     env:
-      BRANCH_NAME: test-deployment/${{ github.run_id }}-${{ github.run_attempt }}
+      BRANCH_NAME: test-deployment/${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.run_label && format('-{0}', inputs.run_label) || '' }}
       FILE_NAME: deployment-simulations/latest.md
       # How long an intermediary PR sleeps between the commits it pushes while open.
       UPDATE_INTERVAL_SECONDS: 30
@@ -56,6 +88,7 @@ jobs:
           INTERMEDIARY_PR_COUNT: ${{ inputs.intermediary_pr_count }}
           INTERMEDIARY_PR_OPEN_MINUTES: ${{ inputs.intermediary_pr_open_minutes }}
           MERGE_DELAY_MINUTES: ${{ inputs.merge_delay_minutes }}
+          DEPLOYMENT_STATUS: ${{ inputs.deployment_status }}
           MAX_INTERMEDIARY_MINUTES: 40
           MAX_FINAL_MERGE_MINUTES: 55
           MAX_PR_COUNT: 20
@@ -76,6 +109,16 @@ jobs:
           if [ -n "$MERGE_DELAY_MINUTES" ]; then
             require_non_negative_integer merge_delay_minutes "$MERGE_DELAY_MINUTES"
           fi
+
+          # workflow_dispatch constrains this with a choice list, but workflow_call
+          # can only type it as a string, so callers get checked here instead.
+          case "$DEPLOYMENT_STATUS" in
+            error|success|failure|inactive|in_progress|queued|pending) ;;
+            *)
+              echo "::error::deployment_status must be one of error, success, failure, inactive, in_progress, queued, pending. Got: $DEPLOYMENT_STATUS"
+              fail=1
+              ;;
+          esac
 
           if [ "$fail" -eq 1 ]; then
             exit 1
