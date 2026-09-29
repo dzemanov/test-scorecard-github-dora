@@ -22,17 +22,17 @@ on:
           - queued
           - pending
       merge_delay_minutes:
-        description: "How many minutes to wait before auto-merge (max 55)"
-        required: true
-        default: 5
+        description: "How many minutes to wait before auto-merge of the deployment PR (max 55 minutes)"
+        required: false
+        default: 0
         type: number
       intermediary_pr_count:
-        description: "How many intermediary PRs to create and merge before deployment PR"
+        description: "How many intermediary PRs to create and merge before deployment PR (max 20)"
         required: true
         default: 0
         type: number
       intermediary_pr_open_minutes:
-        description: "How many minutes each intermediary PR should stay open before merge (PRs count * minutes to wait must be <= 55 minutes)"
+        description: "How many minutes each intermediary PR should stay open before merge (PRs count * PR open minutes must be <= 40 minutes)"
         required: true
         default: 1
         type: number
@@ -46,13 +46,19 @@ jobs:
     env:
       BRANCH_NAME: test-deployment/${{ github.run_id }}-${{ github.run_attempt }}
       FILE_NAME: deployment-simulations/latest.md
+      # How long an intermediary PR sleeps between the commits it pushes while open.
+      UPDATE_INTERVAL_SECONDS: 30
+      # Pause after the last push before merging so GitHub finishes computing mergeability.
+      MERGE_SETTLE_SECONDS: 3
     steps:
       - name: Validate inputs
         env:
           INTERMEDIARY_PR_COUNT: ${{ inputs.intermediary_pr_count }}
           INTERMEDIARY_PR_OPEN_MINUTES: ${{ inputs.intermediary_pr_open_minutes }}
           MERGE_DELAY_MINUTES: ${{ inputs.merge_delay_minutes }}
-          MAX_MINUTES: 55
+          MAX_INTERMEDIARY_MINUTES: 40
+          MAX_FINAL_MERGE_MINUTES: 55
+          MAX_PR_COUNT: 20
         run: |
           fail=0
 
@@ -62,31 +68,38 @@ jobs:
             if ! [[ "$value" =~ ^[0-9]+$ ]]; then
               echo "::error::$name must be a non-negative integer. Got: $value"
               fail=1
-              return 1
             fi
           }
 
-          require_non_negative_integer intermediary_pr_count "$INTERMEDIARY_PR_COUNT" || true
-          require_non_negative_integer intermediary_pr_open_minutes "$INTERMEDIARY_PR_OPEN_MINUTES" || true
-          require_non_negative_integer merge_delay_minutes "$MERGE_DELAY_MINUTES" || true
+          require_non_negative_integer intermediary_pr_count "$INTERMEDIARY_PR_COUNT"
+          require_non_negative_integer intermediary_pr_open_minutes "$INTERMEDIARY_PR_OPEN_MINUTES"
+          if [ -n "$MERGE_DELAY_MINUTES" ]; then
+            require_non_negative_integer merge_delay_minutes "$MERGE_DELAY_MINUTES"
+          fi
 
           if [ "$fail" -eq 1 ]; then
             exit 1
           fi
 
+          if [ "$INTERMEDIARY_PR_COUNT" -gt "$MAX_PR_COUNT" ]; then
+            echo "::error::pr_count is ${INTERMEDIARY_PR_COUNT}, which exceeds the maximum of ${MAX_PR_COUNT}."
+            exit 1
+          fi
+
           intermediary_total_minutes=$((INTERMEDIARY_PR_COUNT * INTERMEDIARY_PR_OPEN_MINUTES))
-          if [ "$intermediary_total_minutes" -gt "$MAX_MINUTES" ]; then
-            echo "::error::intermediary_pr_count * intermediary_pr_open_minutes is ${intermediary_total_minutes} minute(s), which exceeds the maximum of ${MAX_MINUTES} minutes."
+          if [ "$intermediary_total_minutes" -gt "$MAX_INTERMEDIARY_MINUTES" ]; then
+            echo "::error::intermediary_pr_count * intermediary_pr_open_minutes is ${intermediary_total_minutes} minute(s), which exceeds the maximum of ${MAX_INTERMEDIARY_MINUTES} minutes."
             exit 1
           fi
 
-          if [ "$MERGE_DELAY_MINUTES" -gt "$MAX_MINUTES" ]; then
-            echo "::error::merge_delay_minutes is ${MERGE_DELAY_MINUTES}, which exceeds the maximum of ${MAX_MINUTES} minutes."
+          if [ -z "$MERGE_DELAY_MINUTES" ] || [ "$MERGE_DELAY_MINUTES" -eq 0 ]; then
+            echo "Deployment PR auto-merge delay: none requested, will wait ${MERGE_SETTLE_SECONDS}s."
+          elif [ "$MERGE_DELAY_MINUTES" -gt "$MAX_FINAL_MERGE_MINUTES" ]; then
+            echo "::error::merge_delay_minutes is ${MERGE_DELAY_MINUTES}, which exceeds the maximum of ${MAX_FINAL_MERGE_MINUTES} minutes."
             exit 1
+          else
+            echo "Deployment PR auto-merge delay: ${MERGE_DELAY_MINUTES} minute(s)."
           fi
-
-          echo "Intermediary PRs: ${INTERMEDIARY_PR_COUNT} PRs, each opened for ${INTERMEDIARY_PR_OPEN_MINUTES}, total of ${intermediary_total_minutes} minute(s)."
-          echo "Auto-merge delay: ${MERGE_DELAY_MINUTES} minute(s)."
 
       - name: Generate GitHub App installation token
         id: app-token
@@ -157,7 +170,7 @@ jobs:
             local branch_name="$2"
             local open_minutes="$3"
             local open_seconds=$((open_minutes * 60))
-            local update_interval_seconds=30
+            local update_interval_seconds="$UPDATE_INTERVAL_SECONDS"
             local update_count=$((open_seconds / update_interval_seconds))
 
             if [ "$open_seconds" -gt 0 ]; then
@@ -183,8 +196,8 @@ jobs:
               done
             fi
 
-            echo "Waiting 5s for mergeability checks to settle before merge."
-            sleep 5
+            echo "Waiting ${MERGE_SETTLE_SECONDS}s for mergeability checks to settle before merge."
+            sleep "$MERGE_SETTLE_SECONDS"
             gh pr merge "$pr_url" --squash --delete-branch
             echo "Merged intermediary PR: $pr_url"
           }
@@ -253,10 +266,17 @@ jobs:
 
       - name: Wait before auto-merge
         if: ${{ inputs.auto_merge_deployment_pr }}
+        env:
+          MERGE_DELAY_MINUTES: ${{ inputs.merge_delay_minutes }}
         run: |
-          delay_minutes="${{ inputs.merge_delay_minutes }}"
-          delay_seconds=$((delay_minutes * 60))
-          echo "Waiting $delay_minutes minute(s) before auto-merge..."
+          if [ -z "$MERGE_DELAY_MINUTES" ] || [ "$MERGE_DELAY_MINUTES" -eq 0 ]; then
+            echo "No merge delay requested. Waiting ${MERGE_SETTLE_SECONDS}s before auto-merge..."
+            sleep "$MERGE_SETTLE_SECONDS"
+            exit 0
+          fi
+
+          delay_seconds=$((MERGE_DELAY_MINUTES * 60))
+          echo "Waiting ${MERGE_DELAY_MINUTES} minute(s) before auto-merge..."
           sleep "$delay_seconds"
 
       - name: Refresh GitHub App installation token
@@ -269,7 +289,6 @@ jobs:
 
       - name: Auto-merge pull request
         if: ${{ inputs.auto_merge_deployment_pr }}
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.merge-token.outputs.token }}
         run: |
