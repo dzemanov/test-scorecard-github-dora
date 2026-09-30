@@ -83,3 +83,25 @@ gh api "repos/dzemanov/test-scorecard-github-dora/deployments/<deployment_id>"
 # List status history for one deployment
 gh api "repos/dzemanov/test-scorecard-github-dora/deployments/<deployment_id>/statuses"
 ```
+
+## Check workflow runs
+
+```bash
+# List the workflows in the repository (id, name, path, state)
+gh api "repos/dzemanov/test-scorecard-github-dora/actions/workflows" \
+  --jq '.workflows[] | {id, name, path, state}'
+
+# List runs of one workflow (status, conclusion, commit and creation time)
+# The workflow can be addressed by file name (as below) or by the numeric id from command above.
+gh api "repos/dzemanov/test-scorecard-github-dora/actions/workflows/simulate-dora.yml/runs?per_page=20" \
+  --jq '.workflow_runs[] | {id, run_number, status, conclusion, sha: .head_sha, created_at, url: .html_url}'
+
+# Inspect one run by id
+gh api "repos/dzemanov/test-scorecard-github-dora/actions/runs/<run_id>"
+```
+
+```bash
+gh workflow list
+gh run list --workflow simulate-dora.yml --limit 20
+gh run view <run_id>
+```
