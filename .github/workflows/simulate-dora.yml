@@ -36,9 +36,9 @@ jobs:
     with:
       run_label: seg1
       intermediary_pr_count: 2
-      intermediary_pr_open_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      intermediary_pr_open_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       deployment_status: failure
-      merge_delay_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      merge_delay_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       auto_merge_deployment_pr: true
 
   # PR-C is the fix, followed by the deployment that recovers from segment 1.
@@ -49,9 +49,9 @@ jobs:
     with:
       run_label: seg2
       intermediary_pr_count: 1
-      intermediary_pr_open_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      intermediary_pr_open_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       deployment_status: success
-      merge_delay_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      merge_delay_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       auto_merge_deployment_pr: true
 
   # PR-D, then a clean deployment with no failure between it and the previous one.
@@ -62,7 +62,7 @@ jobs:
     with:
       run_label: seg3
       intermediary_pr_count: 1
-      intermediary_pr_open_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      intermediary_pr_open_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       deployment_status: success
-      merge_delay_minutes: ${{ github.event_name == 'schedule' && 2 || inputs.pr_open_minutes }}
+      merge_delay_minutes: ${{ fromJSON(format('{0}', github.event_name == 'schedule' && 2 || inputs.pr_open_minutes)) }}
       auto_merge_deployment_pr: true
