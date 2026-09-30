@@ -8,7 +8,7 @@ restore) have data to measure.
 
 ## Workflows
 
-### `Create and Merge Deployment PR` (`create-and-merge-deployment-pr.yml`)
+### Create and Merge Deployment PR (`create-and-merge-deployment-pr.yml`)
 
 - **Trigger**: Manual (`workflow_dispatch`) and `workflow_call`.
 - **Behaviour**: Creates N intermediary PRs (each held open, committed to periodically, then
@@ -24,20 +24,20 @@ restore) have data to measure.
 | `auto_merge_deployment_pr`     | boolean         | `true`    | Automatically merge final deployment PR                                                                                         |
 | `run_label`                    | string          | `""`      | for `workflow_call` to distinguish the same caller                                                                              |
 
-### `Create Test Deployment on PR Merge` (`create-test-deployment-on-pr-merge.yml`)
+### Create Test Deployment on PR Merge (`create-test-deployment-on-pr-merge.yml`)
 
 - **Trigger**: A pull request merged into `main` carrying the `deployment-test` label.
 - **Behavior**: Creates a deployment against a dummy `production` environment, then sets its
   status. Reads the `deployment-status-<state>` label on the PR; defaults to `success`
   if none is present.
 
-### `Mark Deployment Status` (`mark-deployment-status.yml`)
+### Mark Deployment Status (`mark-deployment-status.yml`)
 
 - **Trigger**: Manual (`workflow_dispatch`).
 - **Inputs**: `deployment_id`, `status`.
 - **Behavior**: adds an extra status event to an existing deployment.
 
-### `Cleanup Old Deployments` (`cleanup-old-deployments.yml`)
+### Cleanup Old Deployments (`cleanup-old-deployments.yml`)
 
 - **Trigger**: weekly `schedule` (`0 4 * * 0`, Sunday 04:00 UTC) and manual
   (`workflow_dispatch`).
@@ -46,7 +46,7 @@ restore) have data to measure.
   it `inactive` (required — an active deployment cannot be deleted) and then deletes it. A
   job summary table reports how many were seen, matched, deleted and failed.
 
-### `Simulate DORA` (`simulate-dora.yml`)
+### Simulate DORA (`simulate-dora.yml`)
 
 Runs a DORA scenario by chaining three calls to `Create and Merge Deployment PR`:
 
