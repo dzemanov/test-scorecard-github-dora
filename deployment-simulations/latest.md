@@ -1,6 +1,22 @@
 # Test PR for deployment testing
 
-- kind: deployment
-- run_id: 36844848319
+- kind: intermediary-1
+- run_id: 37293780105
 - run_attempt: 1
-- created_at: 2026-10-01T10:00:23Z
+- created_at: 2026-10-05T10:00:51Z
+
+- intermediary_update_number: 1
+- intermediary_update_interval_seconds: 30
+- intermediary_update_at: 2026-10-05T10:01:26Z
+
+- intermediary_update_number: 2
+- intermediary_update_interval_seconds: 30
+- intermediary_update_at: 2026-10-05T10:01:58Z
+
+- intermediary_update_number: 3
+- intermediary_update_interval_seconds: 30
+- intermediary_update_at: 2026-10-05T10:02:30Z
+
+- intermediary_update_number: 4
+- intermediary_update_interval_seconds: 30
+- intermediary_update_at: 2026-10-05T10:03:02Z
